@@ -79,11 +79,11 @@ AS_CLAP_ID = studio.kx.distrho.fadeli.$(1)
 AS_UNIQUE_ID = $(shell echo $(1) | base64 | cut -c 1-4)
 
 FAUSTPP_ARGS = \
-	-Dbinary_name="fadeli-$(1)" \
-	-Dbrand="DISTRHO" \
+	-Dbinary_name="la-$(1)" \
+	-Dbrand="LibreAudio" \
 	-Dclapid="$(call AS_CLAP_ID,$(1))" \
 	-Duniqueid="$(call AS_UNIQUE_ID,$(1))" \
-	-Dhomepage="https://github.com/DISTRHO/Fadeli" \
+	-Dhomepage="https://libreaudio.org" \
 	-Dlabel="$(call AS_LABEL,$(1))" \
 	-Dlicense="ISC" \
 	-Dlicenseurl="http://spdx.org/licenses/ISC.html" \
