@@ -3,10 +3,12 @@ import("stdfaust.lib");
 Nch = 2;                            // djFilter is stereo
 
 // Signal chain: highpass → lowpass → volume fadeout → reverb send/return → limiter
-process = si.bus(Nch) : with_highpass : with_lowpass : volume_apply : with_reverb : limiter;
+process = si.bus(Nch) : with_highpass : with_lowpass : with_overdrive : volume_apply : with_reverb : limiter;
+
+// --- Knob ---
+knob = hslider("knob", 0, -1, 1, 0.0001) : si.smoo;
 
 // filter frequency meters
-
 highpass_meter = _ <: attach(_, hbargraph("[scale:log]highpass_frequency", highpass_frequency_low, highpass_frequency_hi));
 lowpass_meter = _ <: attach(_, hbargraph("[scale:log]lowpass_frequency",  lowpass_frequency_low,  lowpass_frequency_hi));
 
@@ -17,19 +19,19 @@ neutral = 0.1;
 // Knob range at each extreme over which volume fades to silence
 fadeout = 0.02;
 
-// Filter frequency ranges (Hz) — shared by highpass and lowpass sides
-highpass_frequency_low = 40;        // frequency at center of knob travel (subtle cut)
-highpass_frequency_hi = 10000;      // frequency at full right (strong cut)
-lowpass_frequency_low = 40;         // frequency at full left (strong cut)
-lowpass_frequency_hi = 10000;       // frequency at center of knob travel (subtle cut)
+// Filter frequency ranges (Hz)
+highpass_frequency_low = 40;        
+highpass_frequency_hi = 10000;      
+lowpass_frequency_low = 40;         
+lowpass_frequency_hi = 10000;       
 
+// Filter Q ranges
 highpassQ_min = 1;
 highpassQ_max = 8;
-
 lowpassQ_min = 1;
 lowpassQ_max = 8;
 
-// 0 = no resonance (Q at min), 1 = full resonance (Q at max)
+// 0 = no resonance (Q at min), 1 = max resonance
 emphasizeQ = hslider("emphasizeQ", 0, 0, 1, 0.001);
 
 // Exponential Q rise with knob travel; emphasizeQ scales the exponent (0 = flat at min, 1 = full rise to max)
@@ -38,11 +40,6 @@ lowpassQ  = lowpassQ_min  * pow(lowpassQ_max  / lowpassQ_min,  emphasizeQ * t_lo
 
 // Width of the crossfade blend between clean and filtered signal, in knob units
 fade_width = 0.05;
-
-// --- Knob ---
-
-// Center = 0: right (+) activates highpass, left (−) activates lowpass
-knob = hslider("knob", 0, -1, 1, 0.0001) : si.smoo;
 
 // --- Filter position (normalized 0..1 within each active zone) ---
 
@@ -85,8 +82,16 @@ t_fadeout_hi = max(0,  (knob - (1 - 2*fadeout)) / (2*fadeout));
 t_fadeout_lo = max(0, (-knob - (1 - 2*fadeout)) / (2*fadeout));
 // Quadratic curve: perceptually log-shaped, reaches true silence at the extreme
 volume = pow(1 - t_fadeout_hi, 2) * pow(1 - t_fadeout_lo, 2);
-
 volume_apply = par(i, Nch, *(volume));
+
+// Overdrive: slider sets max amount, scales 0→max as knob moves to either extreme
+overdrive_amount = hslider("overdrive", 0, 0, 1, 0.001);
+
+overdrive_t = overdrive_amount * max(t_highpass, t_lowpass)^0.7;
+overdrive_drive = 1 + overdrive_t * 7;
+// tanh(x*drive)/drive keeps small-signal gain at unity; wet/dry blend avoids loudness increase
+overdrive_mono = _ <: *(1 - overdrive_t), (*(overdrive_drive) : ma.tanh : /(overdrive_drive) : *(overdrive_t)) :> _;
+with_overdrive = par(i, Nch, overdrive_mono);
 
 // Reverb send: adjustable maximum, scales 0→max as knob moves to either extreme
 reverb_send_max = hslider("reverb_send", 0, 0, 1, 0.001);
@@ -108,7 +113,7 @@ reverb = re.vital_rev(prelow, prehigh, lowcutoff, highcutoff, lowgain, highgain,
     chorus_amt = 0.1;
     chorus_freq = 0.1;
     predelay = 0;
-    time = 0.68;
+    time = 0.60;
     size = 0.5;
     mix = 1;
 };
